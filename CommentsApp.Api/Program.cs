@@ -40,6 +40,9 @@ builder.Services.AddHostedService<CommentCreatedConsumer>();
 builder.Services
     .AddGraphQLServer()
     .AddQueryType<Query>()
+    .AddMutationType<Mutation>()
+    .AddSubscriptionType<Subscription>()
+    .AddInMemorySubscriptions()
     .AddProjections()
     .AddFiltering()
     .AddSorting();
@@ -59,6 +62,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("Web");
+app.UseWebSockets();
 app.UseStaticFiles();
 app.MapControllers();
 app.MapGraphQL("/graphql");
