@@ -7,6 +7,7 @@ using CommentsApp.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
 
 namespace CommentsApp.Api.Controllers;
 
@@ -19,7 +20,8 @@ public sealed class CommentsController(
     IFileProcessor fileProcessor,
     IMessageBrokerPublisher brokerPublisher,
     ISearchIndexer searchIndexer,
-    IHubContext<CommentsHub> hubContext) : ControllerBase
+    IHubContext<CommentsHub> hubContext,
+    IConnectionMultiplexer redis) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetTopLevelComments([FromQuery] CommentQueryRequest query, CancellationToken cancellationToken)
@@ -39,7 +41,9 @@ public sealed class CommentsController(
             _ => request.OrderByDescending(x => x.CreatedAtUtc)
         };
 
-        var total = await ordered.CountAsync(cancellationToken);
+        // Cache-aside: read total from Redis, fall back to DB on cache miss
+        var total = await GetCachedTotalAsync(ordered, cancellationToken);
+
         var pageItems = await ordered
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
@@ -130,6 +134,12 @@ public sealed class CommentsController(
         dbContext.Comments.Add(comment);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // Invalidate Redis total-count cache so next GET reflects the new comment
+        if (comment.ParentCommentId is null)
+        {
+            await redis.GetDatabase().KeyDeleteAsync(CommentCreatedConsumer.TotalCountKey);
+        }
+
         await brokerPublisher.PublishCommentCreatedAsync(comment, cancellationToken);
         await searchIndexer.IndexCommentAsync(comment, cancellationToken);
 
@@ -137,6 +147,24 @@ public sealed class CommentsController(
         await hubContext.Clients.All.SendAsync("CommentCreated", dto, cancellationToken);
 
         return CreatedAtAction(nameof(GetTopLevelComments), new { id = comment.Id }, dto);
+    }
+
+    /// <summary>
+    /// Cache-aside pattern: reads total from Redis if available, otherwise queries DB and populates cache.
+    /// The consumer increments the key; Create invalidates it on new top-level comment.
+    /// </summary>
+    private async Task<int> GetCachedTotalAsync(IQueryable<Comment> query, CancellationToken cancellationToken)
+    {
+        var db = redis.GetDatabase();
+        var cached = await db.StringGetAsync(CommentCreatedConsumer.TotalCountKey);
+        if (cached.HasValue && int.TryParse(cached, out var cachedTotal))
+        {
+            return cachedTotal;
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        await db.StringSetAsync(CommentCreatedConsumer.TotalCountKey, total, TimeSpan.FromMinutes(5));
+        return total;
     }
 
     private static List<CommentTreeDto> BuildTree(List<Comment> roots, List<Comment> allReplies, HashSet<Guid> topLevelIds)
