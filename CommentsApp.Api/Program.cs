@@ -35,6 +35,7 @@ builder.Services.AddScoped<ICommentSanitizer, CommentSanitizer>();
 builder.Services.AddScoped<IFileProcessor, FileProcessor>();
 builder.Services.AddSingleton<IMessageBrokerPublisher, RabbitMqPublisher>();
 builder.Services.AddSingleton<ISearchIndexer, ElasticsearchIndexer>();
+builder.Services.AddHostedService<CommentCreatedConsumer>();
 
 builder.Services
     .AddGraphQLServer()
