@@ -4,6 +4,7 @@ using CommentsApp.Api.Hubs;
 using CommentsApp.Api.Integrations;
 using CommentsApp.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,10 +56,12 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-if (app.Environment.IsDevelopment())
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
 {
-    app.MapOpenApi();
-}
+    options.Title = "Comments API";
+    options.Theme = ScalarTheme.Purple;
+});
 
 app.UseHttpsRedirection();
 app.UseCors("Web");

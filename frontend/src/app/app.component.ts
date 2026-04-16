@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import * as signalR from '@microsoft/signalr';
 import { CommentItem, RepliesComponent } from './replies.component';
 
@@ -57,8 +57,13 @@ const API_BASE = 'http://localhost:8080';
 
           <div class="field">
             <label>Attachment <span class="hint">(image JPG/GIF/PNG max 320×240 or TXT max 100 KB)</span></label>
-            <input type="file" (change)="onFileSelected($event)" accept=".jpg,.jpeg,.gif,.png,.txt" />
-            <span *ngIf="selectedFile" class="file-info">Selected: {{ selectedFile.name }}</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <input #fileInput type="file" (change)="onFileSelected($event)" accept=".jpg,.jpeg,.gif,.png,.txt" style="flex:1;min-width:0" />
+              @if (selectedFile) {
+                <span class="file-info">{{ selectedFile.name }}</span>
+                <button type="button" class="btn-remove-file" (click)="clearFile(fileInput)" title="Remove attachment">✕</button>
+              }
+            </div>
           </div>
 
           <div class="field captcha-field">
@@ -241,6 +246,8 @@ const API_BASE = 'http://localhost:8080';
     .captcha-img { border-radius: 6px; border: 1px solid #e0e0e0; }
     .btn-refresh { border: 1px solid #c5cae9; background: #f3f4ff; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 1.1rem; color: #3247ff; }
     .file-info { font-size: 0.82rem; color: #555; }
+    .btn-remove-file { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 2px 7px; cursor: pointer; color: #c00; font-size: 0.85rem; line-height: 1.4; }
+    .btn-remove-file:hover { background: #fee; border-color: #c00; }
     .actions { display: flex; gap: 10px; margin-top: 4px; }
     .btn-primary { background: #3247ff; color: white; border: none; border-radius: 8px; padding: 9px 18px; cursor: pointer; font-size: 0.93rem; }
     .btn-primary:hover { background: #1a32e8; }
@@ -315,13 +322,7 @@ const API_BASE = 'http://localhost:8080';
 export class AppComponent implements OnInit, OnDestroy {
   readonly apiBase = API_BASE;
 
-  form = this.fb.group({
-    userName: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9]+$/)]],
-    email: ['', [Validators.required, Validators.email]],
-    homePage: ['', [Validators.pattern(/^(https?:\/\/[^\s]+)?$/)]],
-    text: ['', [Validators.required]],
-    captchaCode: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9]+$/)]]
-  });
+  form!: FormGroup;
 
   @ViewChild('messageBox') messageBox!: ElementRef<HTMLTextAreaElement>;
 
@@ -359,7 +360,15 @@ export class AppComponent implements OnInit, OnDestroy {
     return Math.max(1, Math.ceil(this.total / this.pageSize));
   }
 
-  constructor(private readonly fb: FormBuilder) {}
+  constructor(private readonly fb: FormBuilder) {
+    this.form = this.fb.group({
+      userName: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9]+$/)]],
+      email: ['', [Validators.required, Validators.email]],
+      homePage: ['', [Validators.pattern(/^(https?:\/\/[^\s]+)?$/)]],
+      text: ['', [Validators.required]],
+      captchaCode: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9]+$/)]]
+    });
+  }
 
   ngOnInit(): void {
     void this.loadCaptcha();
@@ -428,7 +437,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const data = await res.json();
     this.captchaChallengeId = data.challengeId;
     this.captchaImageBase64 = data.imageBase64;
-    this.form.controls.captchaCode.reset('');
+    this.form.controls["captchaCode"].reset('');
   }
 
   onFileSelected(event: Event): void {
@@ -436,19 +445,24 @@ export class AppComponent implements OnInit, OnDestroy {
     this.selectedFile = input.files?.[0] ?? null;
   }
 
+  clearFile(fileInput: HTMLInputElement): void {
+    this.selectedFile = null;
+    fileInput.value = '';
+  }
+
   wrapTag(tag: string): void {
     const textarea = this.messageBox?.nativeElement;
     if (!textarea) {
-      const current = this.form.controls.text.value ?? '';
-      this.form.controls.text.setValue(`${current}<${tag}></${tag}>`);
+      const current = this.form.controls["text"].value ?? '';
+      this.form.controls["text"].setValue(`${current}<${tag}></${tag}>`);
       return;
     }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const current = this.form.controls.text.value ?? '';
+    const current = this.form.controls["text"].value ?? '';
     const selected = current.slice(start, end);
     const replaced = current.slice(0, start) + `<${tag}>${selected}</${tag}>` + current.slice(end);
-    this.form.controls.text.setValue(replaced);
+    this.form.controls["text"].setValue(replaced);
     setTimeout(() => {
       textarea.selectionStart = start + tag.length + 2;
       textarea.selectionEnd = start + tag.length + 2 + selected.length;
@@ -458,10 +472,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   insertLink(): void {
     const textarea = this.messageBox?.nativeElement;
-    const current = this.form.controls.text.value ?? '';
+    const current = this.form.controls["text"].value ?? '';
     const snippet = `<a href="https://example.com" title="link title">link text</a>`;
     if (!textarea) {
-      this.form.controls.text.setValue(`${current}${snippet}`);
+      this.form.controls["text"].setValue(`${current}${snippet}`);
       return;
     }
     const start = textarea.selectionStart;
@@ -471,12 +485,12 @@ export class AppComponent implements OnInit, OnDestroy {
       ? `<a href="https://example.com" title="link title">${selected}</a>`
       : snippet;
     const replaced = current.slice(0, start) + tag + current.slice(end);
-    this.form.controls.text.setValue(replaced);
+    this.form.controls["text"].setValue(replaced);
     setTimeout(() => textarea.focus());
   }
 
   async preview(): Promise<void> {
-    const text = this.form.controls.text.value ?? '';
+    const text = this.form.controls["text"].value ?? '';
     if (!text.trim()) {
       this.previewHtml = '';
       return;
@@ -507,13 +521,13 @@ export class AppComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.serverError = '';
     const payload = new FormData();
-    payload.set('userName', this.form.controls.userName.value ?? '');
-    payload.set('email', this.form.controls.email.value ?? '');
-    const hp = this.form.controls.homePage.value;
+    payload.set('userName', this.form.controls["userName"].value ?? '');
+    payload.set('email', this.form.controls["email"].value ?? '');
+    const hp = this.form.controls["homePage"].value;
     if (hp) payload.set('homePage', hp);
-    payload.set('text', this.form.controls.text.value ?? '');
+    payload.set('text', this.form.controls["text"].value ?? '');
     payload.set('captchaChallengeId', this.captchaChallengeId);
-    payload.set('captchaCode', this.form.controls.captchaCode.value ?? '');
+    payload.set('captchaCode', this.form.controls["captchaCode"].value ?? '');
     if (this.replyTarget) {
       payload.set('parentCommentId', this.replyTarget.id);
     }

@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Elastic.Clients.Elasticsearch" Version="9.3.4" />
+    <PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.*" />
     <PackageReference Include="HotChocolate.AspNetCore" Version="15.1.14" />
     <PackageReference Include="HotChocolate.Data.EntityFramework" Version="15.1.14" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.12" />
@@ -17,6 +17,7 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.*" />
     <PackageReference Include="RabbitMQ.Client" Version="7.2.1" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.13.22" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="StackExchange.Redis" Version="2.12.14" />
   </ItemGroup>

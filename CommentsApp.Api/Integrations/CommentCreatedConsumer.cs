@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CommentsApp.Api.Models;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using StackExchange.Redis;
@@ -13,6 +14,7 @@ namespace CommentsApp.Api.Integrations;
 public sealed class CommentCreatedConsumer(
     IConfiguration configuration,
     IConnectionMultiplexer redis,
+    ISearchIndexer searchIndexer,
     ILogger<CommentCreatedConsumer> logger) : BackgroundService
 {
     public const string QueueName = "comments.created";
@@ -89,6 +91,18 @@ public sealed class CommentCreatedConsumer(
                         var db = redis.GetDatabase();
                         await db.StringIncrementAsync(TotalCountKey);
                     }
+
+                    // Index in Elasticsearch for full-text search
+                    await searchIndexer.IndexCommentAsync(new Comment
+                    {
+                        Id = msg.Id,
+                        UserName = msg.UserName,
+                        Email = msg.Email,
+                        Text = msg.Text,
+                        CreatedAtUtc = msg.CreatedAtUtc,
+                        ParentCommentId = msg.ParentCommentId,
+                        IpAddress = string.Empty
+                    });
                 }
 
                 await channel.BasicAckAsync(ea.DeliveryTag, multiple: false);

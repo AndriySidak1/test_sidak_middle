@@ -32,7 +32,8 @@ A full-stack SPA for threaded comments, built with **.NET 9 + Angular + PostgreS
 - Image upload (JPG, GIF, PNG) — auto-resized to max 320×240 px
 - Text file upload (TXT) — max 100 KB
 - Lightbox viewer for images with zoom animation
-- Download link for text files
+- In-page viewer (modal) for text files
+- Remove attachment button before submitting
 
 ### Markup toolbar
 - Buttons for `[i]`, `[strong]`, `[code]`, `[a]` — wraps selected text
@@ -41,11 +42,12 @@ A full-stack SPA for threaded comments, built with **.NET 9 + Angular + PostgreS
 - Live preview without page reload (AJAX POST `/api/comments/preview`)
 
 ### Middle-level integrations
-- **RabbitMQ** — publishes `comments.created` event to durable queue on every new comment
-- **Elasticsearch** — indexes every comment; full-text search across `userName`, `email`, `text` via `GET /api/comments/search?q=…`
-- **Redis** — stores CAPTCHA challenges (replaces in-memory cache, survives API restarts)
+- **RabbitMQ** — publishes `comments.created` event to durable queue on every new comment; `CommentCreatedConsumer` background service processes messages
+- **Elasticsearch** — indexes every comment via RabbitMQ consumer; full-text search across `userName`, `email`, `text` via `GET /api/comments/search?q=…`
+- **Redis** — CAPTCHA challenge cache + cache-aside pattern for top-level comment count (`comments:toplevel:total`)
 - **SignalR / WebSocket** — new comments pushed to all connected clients in real time; live indicator in UI
-- **GraphQL** — flexible query endpoint at `/graphql` (HotChocolate, with paging/filtering/sorting)
+- **GraphQL** — `Query`, `Mutation` (createComment), `Subscription` (onCommentCreated) at `/graphql` (HotChocolate 15)
+- **Scalar** — interactive API documentation at `/scalar/v1`
 
 ## Quick start with Docker
 
@@ -59,6 +61,7 @@ docker compose up --build
 |---------|-----|
 | Frontend | http://localhost:4200 |
 | API | http://localhost:8080 |
+| API docs (Scalar) | http://localhost:8080/scalar/v1 |
 | GraphQL playground | http://localhost:8080/graphql |
 | RabbitMQ management | http://localhost:15672 (guest/guest) |
 | Elasticsearch | http://localhost:9200 |
