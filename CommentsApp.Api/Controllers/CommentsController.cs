@@ -26,6 +26,11 @@ public sealed class CommentsController(
     [HttpGet]
     public async Task<IActionResult> GetTopLevelComments([FromQuery] CommentQueryRequest query, CancellationToken cancellationToken)
     {
+        if (query.Page < 1 || query.PageSize < 1 || query.PageSize > 100)
+        {
+            return BadRequest(new { message = "Page must be >= 1 and PageSize between 1 and 100." });
+        }
+
         var request = dbContext.Comments
             .AsNoTracking()
             .Where(x => x.ParentCommentId == null)
@@ -69,13 +74,8 @@ public sealed class CommentsController(
             return BadRequest(new { message = "Query is required." });
         }
 
-        if (searchIndexer is ElasticsearchIndexer esIndexer)
-        {
-            var results = await esIndexer.SearchAsync(q, page, pageSize, cancellationToken);
-            return Ok(new { total = results.Count, items = results });
-        }
-
-        return StatusCode(501, new { message = "Search not available." });
+        var results = await searchIndexer.SearchAsync(q, page, pageSize, cancellationToken);
+        return Ok(new { total = results.Count, items = results });
     }
 
     [HttpPost("preview")]

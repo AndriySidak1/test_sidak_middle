@@ -6,6 +6,8 @@ public sealed class CreateCommentInput
     public required string Email { get; init; }
     public string? HomePage { get; init; }
     public required string Text { get; init; }
+    public required string CaptchaChallengeId { get; init; }
+    public required string CaptchaCode { get; init; }
     public Guid? ParentCommentId { get; init; }
 }
 

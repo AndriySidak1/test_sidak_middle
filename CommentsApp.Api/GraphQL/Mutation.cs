@@ -11,7 +11,9 @@ public sealed class Mutation
         CreateCommentInput input,
         [Service] AppDbContext dbContext,
         [Service] ICommentSanitizer sanitizer,
+        [Service] ICaptchaService captchaService,
         [Service] ITopicEventSender sender,
+        [Service] IHttpContextAccessor httpContextAccessor,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(input.UserName) ||
@@ -26,10 +28,17 @@ public sealed class Mutation
             return new CommentPayload("Invalid email format.");
         }
 
+        if (!await captchaService.ValidateAsync(input.CaptchaChallengeId, input.CaptchaCode, cancellationToken))
+        {
+            return new CommentPayload("Invalid captcha.");
+        }
+
         if (!sanitizer.TrySanitize(input.Text, out var sanitizedText))
         {
             return new CommentPayload("Invalid message markup.");
         }
+
+        var ip = httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
         var comment = new Comment
         {
@@ -38,7 +47,7 @@ public sealed class Mutation
             HomePage = input.HomePage,
             Text = sanitizedText,
             ParentCommentId = input.ParentCommentId,
-            IpAddress = "graphql"
+            IpAddress = ip
         };
 
         dbContext.Comments.Add(comment);

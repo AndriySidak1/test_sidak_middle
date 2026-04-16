@@ -10,4 +10,5 @@ public interface IMessageBrokerPublisher
 public interface ISearchIndexer
 {
     Task IndexCommentAsync(Comment comment, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CommentDocument>> SearchAsync(string query, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
 }
