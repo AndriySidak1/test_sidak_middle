@@ -94,9 +94,16 @@ Configuration overrides for local dev are in `appsettings.Development.json`.
 
 ## Database schema
 
-See [`db-schema.sql`](db-schema.sql) — compatible with MySQL Workbench (standard SQL DDL).
+Two schema files are included:
 
-EF Core migrations are in [`CommentsApp.Api/Migrations/`](CommentsApp.Api/Migrations/) and are applied automatically on startup.
+| File | Purpose |
+|------|---------|
+| [`db-schema.sql`](db-schema.sql) | PostgreSQL DDL — open in **pgAdmin**, **DBeaver**, or `psql` to inspect the live schema |
+| [`db-schema-mysql-workbench.sql`](db-schema-mysql-workbench.sql) | MySQL Workbench compatible syntax — open in **MySQL Workbench → File → Open Model** to visualise the ER diagram |
+
+> The production database runs on **PostgreSQL 17**. The MySQL Workbench file is provided for diagram visualisation only.
+
+EF Core migrations are in [`CommentsApp.Api/Migrations/`](CommentsApp.Api/Migrations/) and are applied automatically on startup via `db.Database.Migrate()`.
 
 ## Azure deployment
 
