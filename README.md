@@ -107,17 +107,85 @@ EF Core migrations are in [`CommentsApp.Api/Migrations/`](CommentsApp.Api/Migrat
 
 ## Azure deployment
 
+The full infrastructure is defined as code in [`azure/main.bicep`](azure/main.bicep) and can be deployed with a single command. CI/CD is configured via GitHub Actions ([`deploy-azure.yml`](.github/workflows/deploy-azure.yml)) — on every push to `main` the images are built, pushed to GHCR, and deployed to Azure Container Apps automatically.
+
+### Architecture
+
+```
+                        ┌─────────────────────────────────────┐
+                        │           Azure Resource Group        │
+                        │                                       │
+  User ──► Browser ───►│  Container Apps Env                   │
+                        │  ┌──────────┐   ┌──────────────┐    │
+                        │  │  Web     │   │     API       │    │
+                        │  │ Angular  │──►│  .NET 9       │    │
+                        │  │ :4200    │   │  :8080        │    │
+                        │  └──────────┘   └──────┬───────┘    │
+                        │                         │             │
+                        │          ┌──────────────┼──────────┐ │
+                        │          │              │          │  │
+                        │   ┌──────▼───┐  ┌──────▼───┐      │  │
+                        │   │PostgreSQL│  │  Redis   │      │  │
+                        │   │Flexible  │  │  Cache   │      │  │
+                        │   │Server 17 │  │ Basic C0 │      │  │
+                        │   └──────────┘  └──────────┘      │  │
+                        │                                    │  │
+                        │   ┌──────────┐  ┌──────────┐      │  │
+                        │   │RabbitMQ  │  │Elastic-  │      │  │
+                        │   │CloudAMQP │  │search    │      │  │
+                        │   │(external)│  │(Elastic  │      │  │
+                        │   └──────────┘  │Cloud)    │      │  │
+                        │                 └──────────┘      │  │
+                        │                                    │  │
+                        │   ┌─────────────────────────────┐ │  │
+                        │   │  Log Analytics Workspace     │ │  │
+                        │   └─────────────────────────────┘ │  │
+                        └────────────────────────────────────┘  │
+                                                                  │
+  GitHub ──► Actions ──► GHCR ──────────────────────────────────┘
+             CI/CD        Images
+```
+
+### Deploy
+
+```bash
+# 1. Login
+az login
+
+# 2. Create resource group
+az group create --name comments-rg --location westeurope
+
+# 3. Deploy all infrastructure (Bicep IaC)
+az deployment group create \
+  --resource-group comments-rg \
+  --template-file azure/main.bicep \
+  --parameters postgresPassword='<STRONG_PASSWORD>'
+
+# 4. Get live URLs
+az deployment group show \
+  --resource-group comments-rg \
+  --name main \
+  --query properties.outputs
+```
+
+### GitHub Secrets required for CI/CD
+
+| Secret | Description |
+|--------|-------------|
+| `AZURE_CREDENTIALS` | `az ad sp create-for-rbac --sdk-auth` output |
+| `AZURE_RESOURCE_GROUP` | `comments-rg` |
+
+### Resources provisioned by Bicep
+
 | Component | Azure service |
 |-----------|--------------|
-| API | Azure Container Apps or App Service |
-| Frontend | Azure Static Web Apps |
-| PostgreSQL | Azure Database for PostgreSQL – Flexible Server |
-| Redis | Azure Cache for Redis |
-| RabbitMQ | Azure Container Apps (sidecar) or CloudAMQP |
+| API | Azure Container Apps |
+| Frontend | Azure Container Apps |
+| PostgreSQL | Azure Database for PostgreSQL – Flexible Server v17 |
+| Redis | Azure Cache for Redis (Basic C0) |
+| RabbitMQ | CloudAMQP (external) |
 | Elasticsearch | Elastic Cloud on Azure |
-| Container registry | Azure Container Registry |
-
-Set environment variables matching the keys in `appsettings.json` via App Service Configuration or Container Apps secrets.
+| Logs | Azure Log Analytics Workspace |
 
 ## Self-check
 
